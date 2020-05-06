@@ -280,7 +280,7 @@ for i in range(2006,2007):  # loop through years 2006 - 2017
             N_hot = np.tile(N_hot,(1,1,1))
             soil_temp=np.where(N_hot,45,soil_temp) # set max soil temp to 45
 
-            # Calculate soil OCS fluxes for Ag, forest, and grasslands
+            # Calculate soil OCS fluxes for Ag, forest, grasslands, and wetlands
             COS_ag = COS_over_T_and_SW_ag(soil_temp, soilw)
             COS_forest = COS_over_T_and_SW_forest(soil_temp, soilw)
             COS_grass = COS_over_T_and_SW_grass(soil_temp, soilw)
@@ -295,33 +295,36 @@ for i in range(2006,2007):  # loop through years 2006 - 2017
             land_var_name = data_dir + "land.nc"
             nc_land = Dataset(land_var_name, 'r')
             land_mask = nc_land.variables['land'][0, :, :]  # land mask
-            land_ind = land_mask == 1
-            N1 = land_ind[np.newaxis,np.newaxis,:,:]
-            dim_one=len(COS_ag_no_zero[0])
-            N1 = np.tile(N1,(len(COS_ag_no_zero),dim_one,1,1))
+            land_ind = land_mask == 1 #create index for land
+            N1 = land_ind[np.newaxis,np.newaxis,:,:] #create index for land adding dimensions
+            dim_one=len(COS_ag_no_zero[0]) # number of time steps in month
+            N1 = np.tile(N1,(len(COS_ag_no_zero),dim_one,1,1)) # tile to match dimensions
+            # remove land - set to NaN
             COS_ag_land = np.where(N1 == False, np.nan, COS_ag_no_zero)
             COS_forest_land = np.where(N1 == False, np.nan, COS_forest_no_zero)
             COS_grass_land = np.where(N1 == False, np.nan, COS_grass_no_zero)
             COS_uptake_land = np.where(N1 == False, np.nan, COS_uptake_no_zero)
             COS_wet_land = np.where(N1 == False, np.nan, COS_wet_no_zero)
-            
+            #subset based on vegetation type
+            # index for veg types
             forest_ind_long = np.tile(forest_ind,(dim_one,1,1))
             zero_ind_long = np.tile(zero_ind,(dim_one,1,1))
             wetland_ind_long = np.tile(wetland_ind,(dim_one,1,1))
             crop_ind_long = np.tile(crop_ind,(dim_one,1,1))
             grass_ind_long = np.tile(grass_ind,(dim_one,1,1))
-
-
+            # start with forest
             COS_native_combo = np.ma.copy(COS_forest_land)
+            # replace grasslands
             COS_native_combo[grass_ind_long] = COS_grass_land[grass_ind_long]
+            # replace croplands
             COS_native_combo[crop_ind_long] = COS_ag_land[crop_ind_long]
+            # replace wetlands
             COS_native_combo[wetland_ind_long] = COS_wet_land[wetland_ind_long]
+            # replace other "zero"
             COS_native_combo[zero_ind_long] = 0
+            # remove non land
             COS_native_combo = np.where(N1 == False, np.nan, COS_native_combo)
 
-
-            #subset based on vegetation type
-            
                     
             
             # soil_ocs = Dataset(filename_ocs, 'w', format='NETCDF4')
