@@ -7,16 +7,15 @@ Updated May 4 2020
 # Soil OCS fluxes over North America
 # using equations from Whelan et al 2016
 # and NARR reanalysis soil temperature and soil moisture (top subsurface level)
-# Creates soil flux maps for Forests, Grasslands, Croplands, wetlands
+# Creates soil flux maps for Forests, Grasslands, Croplands, and Wetlands
 # Saves NARR resolution (.3 degree ~32km) soil OCS fluxes combining land types
 # based on NARR native land cover type map which is based on SiB
+
 import numpy as np
 import os.path
 from netCDF4 import Dataset
 import pygrib
 
-#from pyresample.geometry import SwathDefinition
-#from pyresample.kd_tree import resample_nearest
 
 ###############################################
 ##### Soil COS Emission to Atmosphere###########
@@ -54,7 +53,6 @@ def COS_forest_production(soil_temp):
 
 
 def COS_grass_production(soil_temp):
-    # np.exp(regout.params[0]+regout.params[1]*graph_temp)
     return np.exp(stunt_0+stunt_1*soil_temp)  # in pmol m^-2 sec^-1
 
 ###############################################
@@ -205,9 +203,7 @@ def wetland(t):
 #    else:
     return np.exp(-1.46700192)*np.exp(0.18836697*t)
 
-# Load temperature and soil moisture data
-
-
+# Directory for data
 data_dir = "/Users/yshiga/Documents/Data/NARR/"
 # get vegetation type mask
 # NARR saves this out as a grb file
@@ -236,7 +232,8 @@ veg_type_ind = np.array(veg_type_ind)
 # 13	Persistent Wetland
 # 14	Ice Cap and Glacier
 # 15	Missing Data
-        
+     
+# create veg type masks   
 # Forest = 1,2,3,4,5,6,10
 forest_ind=np.array((veg_type_ind[0,:,:]==1, veg_type_ind[0,:,:]==2, veg_type_ind[0,:,:]==3, veg_type_ind[0,:,:]==4, veg_type_ind[0,:,:]==5, veg_type_ind[0,:,:]==6, veg_type_ind[0,:,:]==10))
 forest_ind=np.logical_or.reduce(forest_ind)
@@ -263,6 +260,7 @@ for i in range(2006,2007):  # loop through years 2006 - 2017
         if os.path.isfile(filename_ocs):
              print "File for {0}{1:02d} already exists".format(i,j)
         else:
+            # Load temperature and soil moisture data
             filename_t = data_dir + "tsoil/tsoil.{0}{1:02d}.nc".format(i, j)
             filename_s = data_dir + "soill/soill.{0}{1:02d}.nc".format(i, j)
             print(i)
@@ -274,12 +272,11 @@ for i in range(2006,2007):  # loop through years 2006 - 2017
             soilw = np.multiply(nc_s.variables['soill'][:, 0, :, :],100)  # time step, level, lat, lon
             ind_0 = soil_temp <= 0  # find where soil temp is less than or equal to zero
             ind_hot = soil_temp > 45  # find where soil temp above 45
-            N = ind_0[np.newaxis,:,:,:]
-            N = np.tile(N,(1,1,1))
-            N_hot = ind_hot[np.newaxis,:,:,:]
-            N_hot = np.tile(N_hot,(1,1,1))
+            N = ind_0[np.newaxis,:,:,:] # create index for zero temp
+            N = np.tile(N,(1,1,1)) # tile to match dimensiosn
+            N_hot = ind_hot[np.newaxis,:,:,:] # create index for temp above 45
+            N_hot = np.tile(N_hot,(1,1,1)) # tile to match dimension
             soil_temp=np.where(N_hot,45,soil_temp) # set max soil temp to 45
-
             # Calculate soil OCS fluxes for Ag, forest, grasslands, and wetlands
             COS_ag = COS_over_T_and_SW_ag(soil_temp, soilw)
             COS_forest = COS_over_T_and_SW_forest(soil_temp, soilw)
@@ -289,8 +286,8 @@ for i in range(2006,2007):  # loop through years 2006 - 2017
             COS_ag_no_zero = np.where(N, 0, COS_ag[1])
             COS_forest_no_zero = np.where(N, 0, COS_forest[1])
             COS_grass_no_zero = np.where(N, 0, COS_grass[1])
-            COS_uptake_no_zero = np.where(N, 0, COS_grass[0]) # all production "uptake" are same 
-            COS_wet_no_zero = np.where(N, 0, COS_wet[0]) # all production "uptake" are same 
+            COS_uptake_no_zero = np.where(N, 0, COS_grass[0]) # all "uptake" use same equation 
+            COS_wet_no_zero = np.where(N, 0, COS_wet[0]) # wetlands
             # If it is not land set soil OCS fluxes to nan
             land_var_name = data_dir + "land.nc"
             nc_land = Dataset(land_var_name, 'r')
@@ -324,13 +321,10 @@ for i in range(2006,2007):  # loop through years 2006 - 2017
             COS_native_combo[zero_ind_long] = 0
             # remove non land
             COS_native_combo = np.where(N1 == False, np.nan, COS_native_combo)
-
-                    
-            
-            # soil_ocs = Dataset(filename_ocs, 'w', format='NETCDF4')
+            # variables to exclude when saving Netcdf
             toexclude_dim = ["level"]
             toexclude_var = ['level', 'tsoil','Lambert_Conformal']
-    
+            #save netcdf
             with Dataset.Dataset(filename_t) as src, Dataset.Dataset(filename_ocs, "w") as dst:
                 # copy attributes
                 for name in src.ncattrs():
@@ -346,7 +340,6 @@ for i in range(2006,2007):  # loop through years 2006 - 2017
                        #  print name
                         x = dst.createVariable(name, variable.datatype, variable.dimensions)
                         dst.variables[name][:] = src.variables[name][:]
-
                 COS_native_combo = COS_native_combo[0,:,:]
                 dst.createVariable("COS_native_combo", "f4", (u'time', u'y', u'x'), zlib=True)
                 dst.variables['COS_native_combo'][:] = COS_native_combo
