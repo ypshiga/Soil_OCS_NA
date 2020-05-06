@@ -151,8 +151,9 @@ def sw_at_opt_flux(temperature):
 #######################################################
 # Now, add these two together
 # For each temperature bin/individual temperature
-# modified to exclude temperature filter (I now do this after caclulating
-# all fluxes)
+    
+# ** Modified to exclude temperature filter (I now do this after caclulating
+# all fluxes) ***
 def COS_over_T_and_SW_ag(temperature, soilw):
 #    if temperature <=0:
 #        return 0, 0
